@@ -15,6 +15,8 @@ export type ProjectionStage =
   | 'round_timeout' // Time ran out or operator aborted
   | 'match_summary'; // Game finished
 
+export type ProjectorLayout = 'split' | 'path' | 'stage';
+
 export interface ProjectionState {
   stage: ProjectionStage;
   themeName?: string;
@@ -22,6 +24,7 @@ export interface ProjectionState {
   roundMode?: 'single_team' | 'all_teams';
   boardLength?: number;
   winningScore?: number;
+  projectorLayout?: ProjectorLayout;
   currentTeam?: {
     id: string;
     name: string;
@@ -57,6 +60,7 @@ export type SyncMessage =
   | { type: 'ROUND_SUCCESS'; points: number; teamName: string; teamIcon: string; teamId?: string; updatedTeams: Team[] }
   | { type: 'ROUND_TIMEOUT'; teamName: string }
   | { type: 'MATCH_FINISHED'; winnerName: string; winnerIcon: string; winnerScore: number; teams: Team[] }
+  | { type: 'SET_PROJECTOR_LAYOUT'; layout: ProjectorLayout }
   | { type: 'REQUEST_CURRENT_STATE' }
   | { type: 'PING'; timestamp: number }
   | { type: 'PONG'; timestamp: number };
