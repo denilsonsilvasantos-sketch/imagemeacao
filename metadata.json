@@ -1,0 +1,6 @@
+{
+  "name": "Imagem & Ação",
+  "description": "Aplicativo interativo de Imagem & Ação para gincanas, grupos e igrejas com sorteio dinâmico, dado 3D, cronômetro, categorias P/O/A/D/L/M, importação Excel e geração por IA.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}

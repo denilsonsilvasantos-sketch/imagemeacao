@@ -1,0 +1,97 @@
+@import "tailwindcss";
+
+@layer base {
+  body {
+    font-family: 'Plus Jakarta Sans', system-ui, -apple-system, sans-serif;
+  }
+
+  h1, h2, h3, .font-heading {
+    font-family: 'Rubik', 'Plus Jakarta Sans', sans-serif;
+  }
+
+  .font-mono-digits {
+    font-family: 'JetBrains Mono', monospace;
+  }
+}
+
+/* 3D Scene for the Die */
+.perspective-1000 {
+  perspective: 1000px;
+}
+
+.perspective-1400 {
+  perspective: 1400px;
+}
+
+.transform-style-3d {
+  transform-style: preserve-3d;
+}
+
+.backface-hidden {
+  backface-visibility: hidden;
+  -webkit-backface-visibility: hidden;
+}
+
+/* Die 3D Face transforms */
+.die-face-1 {
+  /* Front: P */
+  transform: rotateY(0deg) translateZ(80px);
+}
+.die-face-2 {
+  /* Back: O */
+  transform: rotateY(180deg) translateZ(80px);
+}
+.die-face-3 {
+  /* Right: A */
+  transform: rotateY(90deg) translateZ(80px);
+}
+.die-face-4 {
+  /* Left: D */
+  transform: rotateY(-90deg) translateZ(80px);
+}
+.die-face-5 {
+  /* Top: L */
+  transform: rotateX(90deg) translateZ(80px);
+}
+.die-face-6 {
+  /* Bottom: M */
+  transform: rotateX(-90deg) translateZ(80px);
+}
+
+/* Larger projector size */
+@media (min-width: 768px) {
+  .die-face-1 { transform: rotateY(0deg) translateZ(100px); }
+  .die-face-2 { transform: rotateY(180deg) translateZ(100px); }
+  .die-face-3 { transform: rotateY(90deg) translateZ(100px); }
+  .die-face-4 { transform: rotateY(-90deg) translateZ(100px); }
+  .die-face-5 { transform: rotateX(90deg) translateZ(100px); }
+  .die-face-6 { transform: rotateX(-90deg) translateZ(100px); }
+}
+
+@keyframes pulseGlow {
+  0%, 100% {
+    box-shadow: 0 0 25px rgba(250, 204, 21, 0.4);
+  }
+  50% {
+    box-shadow: 0 0 50px rgba(250, 204, 21, 0.85);
+  }
+}
+
+.animate-pulse-glow {
+  animation: pulseGlow 2s infinite ease-in-out;
+}
+
+@keyframes urgentPulse {
+  0%, 100% {
+    transform: scale(1);
+    box-shadow: 0 0 20px rgba(239, 68, 68, 0.5);
+  }
+  50% {
+    transform: scale(1.03);
+    box-shadow: 0 0 45px rgba(239, 68, 68, 0.9);
+  }
+}
+
+.animate-urgent {
+  animation: urgentPulse 0.8s infinite ease-in-out;
+}
