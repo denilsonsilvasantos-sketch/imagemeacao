@@ -50,6 +50,7 @@ import {
   uploadLocalDataToSupabase,
   downloadCloudDataFromSupabase,
   SUPABASE_SQL_SCHEMA,
+  generateCompleteSupabaseSql,
   setCustomSupabaseCredentials,
 } from '../services/supabase';
 
@@ -1220,33 +1221,73 @@ export default function AdminPanel({
             {/* SQL Script & Vercel Guide */}
             <div className="mt-8 pt-6 border-t border-slate-800 space-y-4">
               <h4 className="text-xs font-black uppercase tracking-widest text-slate-400">
-                Instruções de Configuração no Supabase & Vercel:
+                Scripts do Supabase & Configuração de Banco de Dados:
               </h4>
 
               <div className="p-4 rounded-2xl bg-slate-950 border border-slate-800 space-y-3">
-                <div className="flex items-center justify-between">
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
                   <div className="flex items-center gap-2">
                     <FileCode className="w-4 h-4 text-amber-400" />
                     <span className="text-xs font-bold text-white uppercase">
-                      1. Script SQL para o Supabase (SQL Editor)
+                      1. Script SQL Completo (Tabelas, Colunas & Seeds com {challenges.length} Palavras)
                     </span>
                   </div>
-                  <button
-                    onClick={() => {
-                      soundManager.playClick();
-                      navigator.clipboard.writeText(SUPABASE_SQL_SCHEMA);
-                      setCopiedSqlSchema(true);
-                      setTimeout(() => setCopiedSqlSchema(false), 2000);
-                    }}
-                    className="px-3 py-1.5 rounded-lg bg-amber-500 hover:bg-amber-400 text-slate-950 font-black text-xs uppercase tracking-wider flex items-center gap-1.5 cursor-pointer transition-all"
-                  >
-                    {copiedSqlSchema ? <Check className="w-3.5 h-3.5" /> : <Copy className="w-3.5 h-3.5" />}
-                    <span>{copiedSqlSchema ? 'SQL Copiado!' : 'Copiar Script SQL'}</span>
-                  </button>
+                  <div className="flex items-center gap-2">
+                    <button
+                      onClick={() => {
+                        soundManager.playClick();
+                        const sql = generateCompleteSupabaseSql(themes, challenges);
+                        navigator.clipboard.writeText(sql);
+                        setCopiedSqlSchema(true);
+                        setTimeout(() => setCopiedSqlSchema(false), 2000);
+                      }}
+                      className="px-3 py-1.5 rounded-lg bg-amber-500 hover:bg-amber-400 text-slate-950 font-black text-xs uppercase tracking-wider flex items-center gap-1.5 cursor-pointer transition-all"
+                    >
+                      {copiedSqlSchema ? <Check className="w-3.5 h-3.5" /> : <Copy className="w-3.5 h-3.5" />}
+                      <span>{copiedSqlSchema ? 'SQL Copiado!' : 'Copiar Script SQL'}</span>
+                    </button>
+                    <button
+                      onClick={() => {
+                        soundManager.playClick();
+                        const sql = generateCompleteSupabaseSql(themes, challenges);
+                        const blob = new Blob([sql], { type: 'text/sql;charset=utf-8;' });
+                        const url = URL.createObjectURL(blob);
+                        const a = document.createElement('a');
+                        a.href = url;
+                        a.download = 'schema_and_seed.sql';
+                        a.click();
+                        URL.revokeObjectURL(url);
+                      }}
+                      className="px-3 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-white font-bold text-xs uppercase tracking-wider flex items-center gap-1.5 cursor-pointer transition-all"
+                    >
+                      <Download className="w-3.5 h-3.5" />
+                      <span>Baixar .SQL</span>
+                    </button>
+                  </div>
                 </div>
                 <p className="text-[11px] text-slate-400 leading-relaxed">
-                  Copie o script e cole na aba <strong>SQL Editor</strong> do Supabase e clique em <strong>Run</strong>. Isso criará as tabelas <code className="text-amber-300">game_rooms</code>, <code className="text-amber-300">custom_themes</code>, <code className="text-amber-300">custom_words</code> e habilitará o Realtime.
+                  Copie o script e cole na aba <strong>SQL Editor</strong> do painel Supabase e clique em <strong>Run</strong>.
                 </p>
+
+                {/* Tables Breakdown summary */}
+                <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 pt-2 border-t border-slate-900 text-[10px] font-mono text-slate-300">
+                  <div className="p-2 bg-slate-900 rounded-lg border border-slate-800">
+                    <span className="text-emerald-400 font-bold block">game_rooms</span>
+                    <span className="text-slate-500">Sincronização TV</span>
+                  </div>
+                  <div className="p-2 bg-slate-900 rounded-lg border border-slate-800">
+                    <span className="text-amber-400 font-bold block">custom_words</span>
+                    <span className="text-slate-500">{challenges.length} palavras</span>
+                  </div>
+                  <div className="p-2 bg-slate-900 rounded-lg border border-slate-800">
+                    <span className="text-sky-400 font-bold block">custom_themes</span>
+                    <span className="text-slate-500">{themes.length} temas</span>
+                  </div>
+                  <div className="p-2 bg-slate-900 rounded-lg border border-slate-800">
+                    <span className="text-purple-400 font-bold block">match_history</span>
+                    <span className="text-slate-500">Placar & histórico</span>
+                  </div>
+                </div>
               </div>
 
               <div className="p-4 rounded-2xl bg-slate-950 border border-slate-800 space-y-2">
