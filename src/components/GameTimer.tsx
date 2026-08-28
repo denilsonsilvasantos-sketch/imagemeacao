@@ -1,9 +1,10 @@
 import { useState, useEffect, useRef } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
-import { Play, Pause, CheckCircle, XCircle, AlertTriangle, BellRing, Sparkles } from 'lucide-react';
+import { Play, Pause, CheckCircle, XCircle, AlertTriangle, BellRing, Sparkles, Users, Crown } from 'lucide-react';
 import { soundManager } from '../utils/audio';
 import confetti from 'canvas-confetti';
 import { syncService } from '../utils/syncChannel';
+import { Team, RoundMode } from '../types';
 
 interface GameTimerProps {
   initialSeconds?: number;
@@ -15,9 +16,12 @@ interface GameTimerProps {
   teamName: string;
   teamColor: string;
   teamIcon: string;
+  teamId?: string;
+  teams?: Team[];
+  roundMode?: RoundMode;
   scoreValue: number;
   projectorMode?: boolean;
-  onSuccess: (timeUsed: number) => void;
+  onSuccess: (timeUsed: number, scoringTeamId?: string) => void;
   onTimeout: () => void;
   onAbort: () => void;
 }
@@ -32,6 +36,9 @@ export default function GameTimer({
   teamName,
   teamColor,
   teamIcon,
+  teamId,
+  teams = [],
+  roundMode = 'single_team',
   scoreValue = 1,
   projectorMode = false,
   onSuccess,
@@ -113,7 +120,7 @@ export default function GameTimer({
     setShowConfirmSuccess(true);
   };
 
-  const handleConfirmSuccess = () => {
+  const handleConfirmSuccess = (chosenTeamId?: string) => {
     setShowConfirmSuccess(false);
     soundManager.playSuccessFanfare();
 
@@ -126,7 +133,7 @@ export default function GameTimer({
     });
 
     const timeUsed = initialSeconds - timeLeft;
-    onSuccess(timeUsed);
+    onSuccess(timeUsed, chosenTeamId || teamId);
   };
 
   const handleCancelSuccess = () => {
@@ -151,7 +158,6 @@ export default function GameTimer({
   };
 
   const progressPercent = ((initialSeconds - timeLeft) / initialSeconds) * 100;
-  const strokeDashoffset = 440 - (440 * (initialSeconds - timeLeft)) / initialSeconds;
 
   return (
     <div className="w-full max-w-4xl mx-auto flex flex-col items-center select-none" id="active-game-timer">
@@ -159,14 +165,14 @@ export default function GameTimer({
       <div className="w-full flex flex-col sm:flex-row items-center justify-between gap-4 p-4 rounded-[24px] bg-white text-indigo-950 shadow-xl mb-6">
         <div className="flex items-center gap-3">
           <div className="w-12 h-12 rounded-2xl bg-yellow-400 flex items-center justify-center text-2xl shadow-md transform -rotate-3">
-            {teamIcon || '🦁'}
+            {roundMode === 'all_teams' ? '⚡' : teamIcon || '🦁'}
           </div>
           <div>
             <span className="text-[10px] uppercase font-black tracking-widest text-indigo-900/60 block">
-              Vez da Equipe
+              {roundMode === 'all_teams' ? 'Dinâmica Simultânea' : 'Vez da Equipe'}
             </span>
             <h3 className="text-xl font-black text-indigo-950 uppercase">
-              {teamName}
+              {roundMode === 'all_teams' ? 'Todas as Equipes Disputam' : teamName}
             </h3>
           </div>
         </div>
@@ -176,7 +182,7 @@ export default function GameTimer({
             {categoryCode} — {categoryLabel}
           </span>
           <span className="px-4 py-2 rounded-2xl text-sm font-black uppercase bg-yellow-400 text-indigo-950 shadow-md border-2 border-yellow-300">
-            ⭐ {scoreValue} {scoreValue === 1 ? 'Ponto' : 'Pontos'}
+            ⭐ +{scoreValue} {scoreValue === 1 ? 'Casa' : 'Casas'}
           </span>
         </div>
       </div>
@@ -289,7 +295,7 @@ export default function GameTimer({
         </div>
       )}
 
-      {/* Confirmation Modal: A equipe acertou? */}
+      {/* Confirmation Modal: Acerto em equipe (Suporta "Todas as Equipes" e "Equipe Individual") */}
       <AnimatePresence>
         {showConfirmSuccess && (
           <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-indigo-950/80 backdrop-blur-md">
@@ -297,37 +303,80 @@ export default function GameTimer({
               initial={{ scale: 0.9, opacity: 0 }}
               animate={{ scale: 1, opacity: 1 }}
               exit={{ scale: 0.9, opacity: 0 }}
-              className="w-full max-w-md p-6 sm:p-8 rounded-[32px] bg-white text-indigo-950 shadow-2xl text-center border-4 border-emerald-500"
+              className="w-full max-w-lg p-6 sm:p-8 rounded-[36px] bg-white text-indigo-950 shadow-2xl text-center border-4 border-emerald-500 max-h-[90vh] overflow-y-auto"
             >
-              <div className="w-16 h-16 rounded-2xl bg-emerald-100 text-emerald-600 flex items-center justify-center mx-auto mb-4">
+              <div className="w-16 h-16 rounded-2xl bg-emerald-100 text-emerald-600 flex items-center justify-center mx-auto mb-4 shadow-sm">
                 <CheckCircle className="w-10 h-10 stroke-[3]" />
               </div>
 
-              <h2 className="text-2xl sm:text-3xl font-black text-indigo-950 uppercase mb-2">
-                A equipe acertou?
-              </h2>
-              <p className="text-indigo-900/70 text-sm font-semibold mb-6">
-                Confirmar que a equipe <strong className="text-indigo-950 font-black">{teamName}</strong> acertou a palavra{' '}
-                <strong className="text-indigo-950 font-black">"{word}"</strong> e recebe{' '}
-                <strong className="text-emerald-600 font-black">+{scoreValue} ponto</strong>.
-              </p>
+              {roundMode === 'all_teams' ? (
+                <>
+                  <h2 className="text-2xl sm:text-3xl font-black text-indigo-950 uppercase mb-1">
+                    Qual equipe acertou?
+                  </h2>
+                  <p className="text-indigo-900/70 text-xs sm:text-sm font-semibold mb-6">
+                    Clique na equipe que acertou a mímica de <strong className="text-indigo-950 font-black">"{word}"</strong> para avançar <strong>+{scoreValue} {scoreValue === 1 ? 'casa' : 'casas'}</strong> no tabuleiro:
+                  </p>
 
-              <div className="grid grid-cols-2 gap-3">
-                <button
-                  onClick={handleConfirmSuccess}
-                  id="btn-confirm-acertou"
-                  className="py-4 px-4 rounded-2xl bg-emerald-500 hover:bg-emerald-600 text-white font-black text-base uppercase tracking-wider shadow-lg transition-all cursor-pointer"
-                >
-                  SIM, ACERTOU!
-                </button>
-                <button
-                  onClick={handleCancelSuccess}
-                  id="btn-cancel-acertou"
-                  className="py-4 px-4 rounded-2xl bg-slate-100 hover:bg-slate-200 text-slate-600 font-black text-base uppercase tracking-wider transition-all cursor-pointer"
-                >
-                  CONTINUAR
-                </button>
-              </div>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mb-6">
+                    {teams.map((t) => (
+                      <button
+                        key={t.id}
+                        onClick={() => handleConfirmSuccess(t.id)}
+                        className="p-4 rounded-2xl bg-indigo-50 hover:bg-emerald-500 hover:text-white border-2 border-indigo-100 hover:border-emerald-600 transition-all flex items-center gap-3 text-left group cursor-pointer shadow-sm"
+                      >
+                        <span className="text-2xl sm:text-3xl p-1 bg-white rounded-xl shadow-xs group-hover:scale-110 transition-transform">
+                          {t.icon}
+                        </span>
+                        <div className="flex-1 overflow-hidden">
+                          <span className="text-sm font-black uppercase text-indigo-950 group-hover:text-white block truncate">
+                            {t.name}
+                          </span>
+                          <span className="text-xs text-indigo-900/60 group-hover:text-emerald-100 font-bold block">
+                            Casa {t.score} → {t.score + scoreValue}
+                          </span>
+                        </div>
+                      </button>
+                    ))}
+                  </div>
+
+                  <button
+                    onClick={handleCancelSuccess}
+                    id="btn-cancel-acertou"
+                    className="w-full py-3.5 px-4 rounded-2xl bg-slate-100 hover:bg-slate-200 text-slate-600 font-black text-sm uppercase tracking-wider transition-all cursor-pointer"
+                  >
+                    Voltar ao Cronômetro
+                  </button>
+                </>
+              ) : (
+                <>
+                  <h2 className="text-2xl sm:text-3xl font-black text-indigo-950 uppercase mb-2">
+                    A equipe acertou?
+                  </h2>
+                  <p className="text-indigo-900/70 text-sm font-semibold mb-6">
+                    Confirmar que a equipe <strong className="text-indigo-950 font-black">{teamName}</strong> acertou a palavra{' '}
+                    <strong className="text-indigo-950 font-black">"{word}"</strong> e avança{' '}
+                    <strong className="text-emerald-600 font-black">+{scoreValue} {scoreValue === 1 ? 'casa' : 'casas'}</strong> no tabuleiro.
+                  </p>
+
+                  <div className="grid grid-cols-2 gap-3">
+                    <button
+                      onClick={() => handleConfirmSuccess(teamId)}
+                      id="btn-confirm-acertou"
+                      className="py-4 px-4 rounded-2xl bg-emerald-500 hover:bg-emerald-600 text-white font-black text-base uppercase tracking-wider shadow-lg transition-all cursor-pointer"
+                    >
+                      SIM, ACERTOU!
+                    </button>
+                    <button
+                      onClick={handleCancelSuccess}
+                      id="btn-cancel-acertou"
+                      className="py-4 px-4 rounded-2xl bg-slate-100 hover:bg-slate-200 text-slate-600 font-black text-base uppercase tracking-wider transition-all cursor-pointer"
+                    >
+                      CONTINUAR
+                    </button>
+                  </div>
+                </>
+              )}
             </motion.div>
           </div>
         )}
@@ -354,7 +403,7 @@ export default function GameTimer({
                 O tempo ainda não acabou.
               </p>
               <p className="text-indigo-900/60 text-xs mb-6 font-semibold">
-                Se encerrar agora, a rodada será finalizada sem pontuação (0 pontos).
+                Se encerrar agora, a rodada será finalizada sem avanço de peões (0 pontos).
               </p>
 
               <div className="grid grid-cols-2 gap-3">
@@ -380,3 +429,4 @@ export default function GameTimer({
     </div>
   );
 }
+

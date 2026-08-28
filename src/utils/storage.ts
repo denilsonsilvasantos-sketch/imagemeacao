@@ -18,6 +18,9 @@ const KEYS = {
 
 export const DEFAULT_SETTINGS: GameSettings = {
   roundDurationSeconds: 80, // 1:20 (80s default from spec)
+  roundMode: 'single_team',
+  boardLength: 50,
+  winningScore: 50,
   soundEnabled: true,
   soundVolume: 0.8,
   projectorMode: false,

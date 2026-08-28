@@ -10,6 +10,7 @@ import {
 import { CATEGORIES } from '../data/categories';
 import Die3D from './Die3D';
 import GameTimer from './GameTimer';
+import AnimatedPawnBoard from './AnimatedPawnBoard';
 import { soundManager } from '../utils/audio';
 import { drawRandomWord } from '../utils/storage';
 import { syncService, ProjectionState } from '../utils/syncChannel';
@@ -27,6 +28,8 @@ import {
   CheckCircle2,
   XCircle,
   Flag,
+  Zap,
+  MapPin,
 } from 'lucide-react';
 import confetti from 'canvas-confetti';
 
@@ -55,7 +58,9 @@ export default function GameBoard({
   const [isWordRevealedToAll, setIsWordRevealedToAll] = useState(false);
   const [categoryExhausted, setCategoryExhausted] = useState(false);
   const [latestRoundResult, setLatestRoundResult] = useState<RoundRecord | null>(null);
+  const [showBoardModal, setShowBoardModal] = useState<boolean>(false);
 
+  const boardTargetScore = match.targetScore || settings.boardLength || 50;
   const currentTeam = match.teams[match.currentTeamIndex] || match.teams[0];
   const currentCategoryDef = rolledCategory ? CATEGORIES[rolledCategory] : null;
 
@@ -71,6 +76,9 @@ export default function GameBoard({
 
     return {
       stage,
+      roundMode: match.roundMode || 'single_team',
+      boardLength: boardTargetScore,
+      winningScore: boardTargetScore,
       currentTeam: {
         id: currentTeam.id,
         name: currentTeam.name,
@@ -86,6 +94,8 @@ export default function GameBoard({
       totalTime: settings.roundDurationSeconds,
       isUrgent: false,
       roundNumber: match.roundNumber,
+      lastScoredTeamId: match.lastScoredTeamId,
+      lastScoredPoints: match.lastScoredPoints,
       lastUpdateTimestamp: Date.now(),
     };
   };
@@ -103,7 +113,17 @@ export default function GameBoard({
     });
 
     return () => unsubscribe();
-  }, [boardStep, match.currentTeamIndex, match.roundNumber, match.teams, rolledCategory, currentWordItem?.score]);
+  }, [
+    boardStep,
+    match.currentTeamIndex,
+    match.roundNumber,
+    match.teams,
+    match.roundMode,
+    match.lastScoredTeamId,
+    match.lastScoredPoints,
+    rolledCategory,
+    currentWordItem?.score,
+  ]);
 
   // Handle dice landing on letter
   const handleDieRollComplete = (category: CategoryCode) => {
@@ -141,7 +161,7 @@ export default function GameBoard({
         categoryCode: category,
         categoryName: CATEGORIES[category]?.name || category,
         score: randomRoundPoints,
-        teamName: currentTeam.name,
+        teamName: match.roundMode === 'all_teams' ? 'Todas as Equipes' : currentTeam.name,
       });
     }
   };
@@ -170,21 +190,29 @@ export default function GameBoard({
     setRolledCategory(null);
   };
 
-  // Record round result & update scoreboard
+  // Record round result & update scoreboard and pawns
   const finishRound = (
     result: 'correct' | 'timeout' | 'aborted',
-    timeUsedSeconds: number
+    timeUsedSeconds: number,
+    scoringTeamId?: string
   ) => {
     if (!currentWordItem || !rolledCategory) return;
 
     const pointsAwarded = result === 'correct' ? currentWordItem.score || 1 : 0;
+    const targetTeamId = scoringTeamId || currentTeam.id;
+    const targetTeam = match.teams.find((t) => t.id === targetTeamId) || currentTeam;
 
-    // Update team score
-    const updatedTeams = match.teams.map((t, idx) => {
-      if (idx === match.currentTeamIndex) {
+    // Update team scores
+    let winnerDetectedTeam: typeof targetTeam | null = null;
+    const updatedTeams = match.teams.map((t) => {
+      if (t.id === targetTeamId) {
+        const newScore = t.score + pointsAwarded;
+        if (newScore >= boardTargetScore) {
+          winnerDetectedTeam = { ...t, score: newScore };
+        }
         return {
           ...t,
-          score: t.score + pointsAwarded,
+          score: newScore,
           roundsPlayed: t.roundsPlayed + 1,
           correctGuesses: (t.correctGuesses || 0) + (result === 'correct' ? 1 : 0),
           wrongGuesses: (t.wrongGuesses || 0) + (result !== 'correct' ? 1 : 0),
@@ -197,8 +225,8 @@ export default function GameBoard({
       id: `round-${Date.now()}`,
       matchId: match.id,
       roundNumber: match.roundNumber,
-      teamId: currentTeam.id,
-      teamName: currentTeam.name,
+      teamId: targetTeam.id,
+      teamName: targetTeam.name,
       category: rolledCategory,
       categoryName: currentCategoryDef?.name || rolledCategory,
       word: currentWordItem.word,
@@ -212,8 +240,12 @@ export default function GameBoard({
     const updatedMatch: MatchState = {
       ...match,
       teams: updatedTeams,
+      lastScoredTeamId: result === 'correct' ? targetTeam.id : undefined,
+      lastScoredPoints: result === 'correct' ? pointsAwarded : undefined,
       usedWordIds: [...match.usedWordIds, currentWordItem.id],
       roundHistory: [newRecord, ...match.roundHistory],
+      isFinished: !!winnerDetectedTeam,
+      winnerTeamId: winnerDetectedTeam ? (winnerDetectedTeam as any).id : undefined,
     };
 
     setLatestRoundResult(newRecord);
@@ -224,14 +256,27 @@ export default function GameBoard({
       syncService.broadcast({
         type: 'ROUND_SUCCESS',
         points: pointsAwarded,
-        teamName: currentTeam.name,
-        teamIcon: currentTeam.icon,
+        teamName: targetTeam.name,
+        teamIcon: targetTeam.icon,
+        teamId: targetTeam.id,
         updatedTeams,
       });
+
+      // Check if winner reached the finish line
+      if (winnerDetectedTeam) {
+        setTimeout(() => {
+          soundManager.playChampionVictory();
+          confetti({
+            particleCount: 200,
+            spread: 120,
+            origin: { y: 0.5 },
+          });
+        }, 500);
+      }
     } else {
       syncService.broadcast({
         type: 'ROUND_TIMEOUT',
-        teamName: currentTeam.name,
+        teamName: match.roundMode === 'all_teams' ? 'Todas as Equipes' : currentTeam.name,
       });
     }
   };
@@ -239,6 +284,13 @@ export default function GameBoard({
   // Move to next round / next team
   const handleNextRound = () => {
     soundManager.playClick();
+    
+    // Check if match was finished by finish line
+    if (match.isFinished || (latestRoundResult && match.teams.some(t => t.score >= boardTargetScore))) {
+      onFinishMatch(match);
+      return;
+    }
+
     const nextTeamIndex = (match.currentTeamIndex + 1) % match.teams.length;
     const nextRoundNumber = match.roundNumber + 1;
 
@@ -246,6 +298,8 @@ export default function GameBoard({
       ...match,
       currentTeamIndex: nextTeamIndex,
       roundNumber: nextRoundNumber,
+      lastScoredTeamId: undefined,
+      lastScoredPoints: undefined,
     };
 
     onUpdateMatch(updatedMatch);
@@ -255,56 +309,49 @@ export default function GameBoard({
     setBoardStep('roll_die');
   };
 
-  // Leaderboard ranking
-  const sortedTeams = useMemo(() => {
-    return [...match.teams].sort((a, b) => b.score - a.score);
-  }, [match.teams]);
-
   return (
-    <div className="w-full max-w-5xl mx-auto px-4 py-4 md:py-6 select-none" id="game-board-view">
+    <div className="w-full max-w-5xl mx-auto px-4 py-4 md:py-6 select-none space-y-6" id="game-board-view">
       {/* Top Banner: Scoreboard & Turn Information in Vibrant Palette Style */}
-      <div className="w-full bg-indigo-900/60 backdrop-blur-md border-2 border-indigo-800/80 rounded-[32px] p-4 sm:p-5 shadow-2xl mb-6">
+      <div className="w-full bg-indigo-900/60 backdrop-blur-md border-2 border-indigo-800/80 rounded-[32px] p-4 sm:p-5 shadow-2xl">
         <div className="flex flex-col md:flex-row items-center justify-between gap-4">
-          {/* Active Turn Team */}
+          {/* Active Turn Team or Simultaneous Mode Info */}
           <div className="flex items-center gap-3 w-full md:w-auto">
             <div className="w-14 h-14 rounded-2xl bg-yellow-400 flex items-center justify-center text-3xl shadow-lg shadow-yellow-400/20 transform -rotate-3">
-              {currentTeam.icon || '🦁'}
+              {match.roundMode === 'all_teams' ? '⚡' : currentTeam.icon || '🦁'}
             </div>
             <div>
-              <span className="text-[11px] font-black uppercase tracking-widest text-indigo-300 block">
-                Rodada #{match.roundNumber} • Vez da Equipe
-              </span>
-              <h2 className="text-2xl sm:text-3xl font-black text-yellow-400 uppercase tracking-tight">
-                {currentTeam.name.toUpperCase()}
+              <div className="flex items-center gap-2">
+                <span className="text-[11px] font-black uppercase tracking-widest text-indigo-300 block">
+                  Rodada #{match.roundNumber}
+                </span>
+                {match.roundMode === 'all_teams' ? (
+                  <span className="px-2 py-0.5 rounded-full bg-amber-400 text-slate-950 text-[10px] font-black uppercase">
+                    Todas Simultâneas
+                  </span>
+                ) : (
+                  <span className="px-2 py-0.5 rounded-full bg-indigo-600 text-white text-[10px] font-black uppercase">
+                    Por Turnos
+                  </span>
+                )}
+              </div>
+              <h2 className="text-xl sm:text-2xl font-black text-yellow-400 uppercase tracking-tight">
+                {match.roundMode === 'all_teams'
+                  ? 'TODAS AS EQUIPES DISPUTAM'
+                  : currentTeam.name.toUpperCase()}
               </h2>
             </div>
           </div>
 
-          {/* Live Scoreboard Pills */}
-          <div className="flex items-center gap-2 overflow-x-auto w-full md:w-auto pb-1 md:pb-0">
-            {match.teams.map((t, idx) => {
-              const isCurrent = idx === match.currentTeamIndex;
-              return (
-                <div
-                  key={t.id}
-                  className={`flex items-center gap-2.5 px-4 py-2.5 rounded-2xl transition-all whitespace-nowrap ${
-                    isCurrent
-                      ? 'bg-indigo-600 text-white ring-4 ring-indigo-300 shadow-xl scale-105'
-                      : 'bg-white text-indigo-950 shadow-md'
-                  }`}
-                >
-                  <span className="text-xl">{t.icon}</span>
-                  <div className="text-left">
-                    <span className={`text-[10px] font-black uppercase tracking-wider block ${isCurrent ? 'text-indigo-200' : 'text-indigo-900/60'}`}>
-                      {t.name}
-                    </span>
-                    <strong className={`text-sm sm:text-base font-black font-mono-digits ${isCurrent ? 'text-yellow-300' : 'text-indigo-950'}`}>
-                      {t.score} {t.score === 1 ? 'pt' : 'pts'}
-                    </strong>
-                  </div>
-                </div>
-              );
-            })}
+          {/* Quick Action Buttons & Board Toggle */}
+          <div className="flex items-center gap-2 flex-wrap justify-end w-full md:w-auto">
+            <button
+              onClick={() => setShowBoardModal(!showBoardModal)}
+              id="btn-toggle-board-view"
+              className="px-4 py-2.5 rounded-2xl bg-gradient-to-r from-amber-500 to-yellow-500 hover:from-amber-400 hover:to-yellow-400 text-slate-950 font-black text-xs uppercase tracking-wider shadow-lg shadow-amber-500/20 border-2 border-yellow-300 transition-all cursor-pointer flex items-center gap-2"
+            >
+              <Trophy className="w-4 h-4" />
+              <span>{showBoardModal ? 'Ocultar Tabuleiro' : 'Ver Tabuleiro (50 Casas)'}</span>
+            </button>
 
             {/* Finish Game Button */}
             <button
@@ -319,6 +366,24 @@ export default function GameBoard({
           </div>
         </div>
       </div>
+
+      {/* PERSISTENT / TOGGLED ANIMATED PAWN BOARD (50 Casas) */}
+      {(showBoardModal || boardStep === 'round_recap') && (
+        <motion.div
+          initial={{ opacity: 0, y: -10 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.3 }}
+        >
+          <AnimatedPawnBoard
+            teams={match.teams}
+            boardLength={boardTargetScore}
+            winningScore={boardTargetScore}
+            activeTeamId={currentTeam.id}
+            lastScoredTeamId={match.lastScoredTeamId}
+            lastScoredPoints={match.lastScoredPoints}
+          />
+        </motion.div>
+      )}
 
       {/* STAGE 1: ROLL THE DIE */}
       {boardStep === 'roll_die' && (
@@ -335,7 +400,9 @@ export default function GameBoard({
             Gire o dado para sortear a categoria!
           </h2>
           <p className="text-indigo-900/60 text-sm font-bold uppercase tracking-wider max-w-md mx-auto mb-4 relative z-10">
-            O dado escolherá aleatoriamente entre as 6 categorias do jogo
+            {match.roundMode === 'all_teams'
+              ? 'Uma palavra será sorteada e todas as equipes tentarão adivinhar juntas!'
+              : `A equipe ${currentTeam.name} fará a mímica nesta rodada.`}
           </p>
 
           {/* 3D Animated Die */}
@@ -343,7 +410,10 @@ export default function GameBoard({
             onRollComplete={handleDieRollComplete}
             setIsRolling={(rolling) => {
               if (rolling) {
-                syncService.broadcast({ type: 'DICE_ROLL', teamName: currentTeam.name });
+                syncService.broadcast({
+                  type: 'DICE_ROLL',
+                  teamName: match.roundMode === 'all_teams' ? 'Todas as Equipes' : currentTeam.name,
+                });
               }
             }}
             projectorMode={settings.projectorMode}
@@ -395,9 +465,15 @@ export default function GameBoard({
 
             {/* Vez da Equipe */}
             <div className="inline-flex items-center gap-2 px-5 py-2 rounded-2xl bg-indigo-50 border border-indigo-200 mt-2 mb-4">
-              <span className="text-xl">{currentTeam.icon}</span>
+              <span className="text-xl">
+                {match.roundMode === 'all_teams' ? '⚡' : currentTeam.icon}
+              </span>
               <span className="text-xs sm:text-sm font-black uppercase tracking-wider text-indigo-950">
-                VEZ DA EQUIPE: <strong className="text-indigo-600">{currentTeam.name}</strong>
+                {match.roundMode === 'all_teams' ? (
+                  <>DINÂMICA: <strong className="text-indigo-600">TODAS AS EQUIPES DISPUTAM</strong></>
+                ) : (
+                  <>VEZ DA EQUIPE: <strong className="text-indigo-600">{currentTeam.name}</strong></>
+                )}
               </span>
             </div>
 
@@ -407,7 +483,7 @@ export default function GameBoard({
                 VALE NESTA RODADA
               </span>
               <strong className="text-2xl sm:text-3xl font-black text-indigo-950 uppercase block font-mono-digits tracking-tight text-amber-600">
-                ⭐ {currentWordItem.score || 1} {currentWordItem.score === 1 ? 'PONTO' : 'PONTOS'}
+                ⭐ +{currentWordItem.score || 1} {currentWordItem.score === 1 ? 'CASA' : 'CASAS'} NO TABULEIRO
               </strong>
             </div>
 
@@ -480,9 +556,12 @@ export default function GameBoard({
           teamName={currentTeam.name}
           teamColor={currentTeam.color}
           teamIcon={currentTeam.icon}
+          teamId={currentTeam.id}
+          teams={match.teams}
+          roundMode={match.roundMode}
           scoreValue={currentWordItem.score || 1}
           projectorMode={settings.projectorMode}
-          onSuccess={(timeUsed) => finishRound('correct', timeUsed)}
+          onSuccess={(timeUsed, scoringTeamId) => finishRound('correct', timeUsed, scoringTeamId)}
           onTimeout={() => finishRound('timeout', settings.roundDurationSeconds)}
           onAbort={() => finishRound('aborted', settings.roundDurationSeconds)}
         />
@@ -509,11 +588,11 @@ export default function GameBoard({
           )}
 
           <h2 className="text-3xl sm:text-4xl font-black text-indigo-950 uppercase tracking-tight mb-1 relative z-10">
-            {latestRoundResult.result === 'correct' ? '🎉 ACERTOU!' : 'TEMPO ESGOTADO'}
+            {latestRoundResult.result === 'correct' ? '🎉 PEÃO AVANÇOU!' : 'TEMPO ESGOTADO'}
           </h2>
 
           <p className="text-indigo-900/60 text-sm font-bold uppercase tracking-wider mb-6 relative z-10">
-            Equipe: <strong className="text-indigo-950 font-black">{latestRoundResult.teamName}</strong>
+            Equipe Pontuadora: <strong className="text-indigo-950 font-black">{latestRoundResult.teamName}</strong>
           </p>
 
           {/* Word and Score Card */}
@@ -525,16 +604,16 @@ export default function GameBoard({
               {latestRoundResult.word}
             </strong>
 
-            <div className="flex items-center justify-center gap-4 mt-4 pt-4 border-t-2 border-indigo-100">
+            <div className="flex items-center justify-center gap-4 mt-4 pt-4 border-t-2 border-indigo-100 flex-wrap">
               <div className="flex items-center gap-2">
                 <span className="text-xs text-indigo-900/60 font-bold uppercase">Resultado:</span>
                 {latestRoundResult.result === 'correct' ? (
                   <span className="px-3 py-1 rounded-full text-xs font-black bg-emerald-500 text-white shadow-sm uppercase">
-                    ACERTOU (+{latestRoundResult.points} {latestRoundResult.points === 1 ? 'PONTO' : 'PONTOS'})
+                    +{latestRoundResult.points} {latestRoundResult.points === 1 ? 'CASA PULADA' : 'CASAS PULADAS'} ♟️
                   </span>
                 ) : (
                   <span className="px-3 py-1 rounded-full text-xs font-black bg-red-100 text-red-600 uppercase">
-                    NÃO PONTUOU (0 PTS)
+                    0 CASAS (NÃO PONTUOU)
                   </span>
                 )}
               </div>
@@ -545,32 +624,18 @@ export default function GameBoard({
             </div>
           </div>
 
-          {/* Updated Scoreboard Section */}
-          <div className="mb-8 relative z-10">
-            <h3 className="text-xs font-black uppercase tracking-widest text-indigo-900/50 mb-3">
-              PLACAR ATUALIZADO
-            </h3>
-            <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
-              {sortedTeams.map((t) => (
-                <div
-                  key={t.id}
-                  className={`p-3.5 rounded-2xl text-center transition-all ${
-                    t.id === currentTeam.id
-                      ? 'bg-indigo-600 text-white shadow-lg ring-4 ring-indigo-200'
-                      : 'bg-indigo-50 border-2 border-indigo-100 text-indigo-950'
-                  }`}
-                >
-                  <div className="text-2xl mb-0.5">{t.icon}</div>
-                  <strong className={`text-xs uppercase block truncate font-black ${t.id === currentTeam.id ? 'text-white' : 'text-indigo-950'}`}>
-                    {t.name}
-                  </strong>
-                  <span className={`text-lg font-black font-mono-digits ${t.id === currentTeam.id ? 'text-yellow-300' : 'text-indigo-950'}`}>
-                    {t.score} {t.score === 1 ? 'pt' : 'pts'}
-                  </span>
-                </div>
-              ))}
+          {/* Winner finish line banner if game reached end */}
+          {match.isFinished && (
+            <div className="mb-6 p-5 rounded-3xl bg-gradient-to-r from-amber-400 to-yellow-500 text-slate-950 font-black shadow-xl animate-pulse">
+              <div className="text-3xl mb-1">🏆🏁</div>
+              <h3 className="text-xl uppercase font-black">
+                CRUZOU A LINHA DE CHEGADA!
+              </h3>
+              <p className="text-xs uppercase tracking-wider">
+                A equipe {latestRoundResult.teamName} atingiu {boardTargetScore} casas e venceu a partida!
+              </p>
             </div>
-          </div>
+          )}
 
           {/* Next Round Button */}
           <button
@@ -578,7 +643,7 @@ export default function GameBoard({
             id="btn-next-round"
             className="w-full py-5 px-8 rounded-3xl bg-yellow-400 hover:bg-yellow-300 text-indigo-950 font-black text-xl uppercase tracking-wider shadow-2xl shadow-yellow-400/30 border-4 border-yellow-300 flex items-center justify-center gap-3 transition-all cursor-pointer relative z-10"
           >
-            <span>PRÓXIMA RODADA</span>
+            <span>{match.isFinished ? 'VER PÓDIO & RESULTADO FINAL 🏆' : 'PRÓXIMA RODADA'}</span>
             <ArrowRight className="w-6 h-6 stroke-[3]" />
           </button>
         </motion.div>
@@ -586,3 +651,4 @@ export default function GameBoard({
     </div>
   );
 }
+

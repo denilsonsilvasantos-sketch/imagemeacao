@@ -6,6 +6,7 @@ import {
   Team,
   MatchState,
   GameSettings,
+  RoundMode,
 } from './types';
 import {
   getStoredThemes,
@@ -162,7 +163,9 @@ export default function App() {
 
   const handleConfirmTeamsAndStart = (
     teams: Team[],
-    roundDurationSeconds: number
+    roundDurationSeconds: number,
+    roundMode: RoundMode = settings.roundMode || 'single_team',
+    targetScore: number = settings.boardLength || 50
   ) => {
     const newMatch: MatchState = {
       id: `match-${Date.now()}`,
@@ -171,6 +174,9 @@ export default function App() {
       teams,
       currentTeamIndex: 0,
       roundNumber: 1,
+      roundMode,
+      targetScore,
+      turnTimeSeconds: roundDurationSeconds,
       usedWordIds: [],
       roundHistory: [],
       isFinished: false,
@@ -218,6 +224,9 @@ export default function App() {
       teams: resetTeams,
       currentTeamIndex: 0,
       roundNumber: 1,
+      roundMode: activeMatch.roundMode || settings.roundMode || 'single_team',
+      targetScore: activeMatch.targetScore || settings.boardLength || 50,
+      turnTimeSeconds: activeMatch.turnTimeSeconds || settings.roundDurationSeconds,
       usedWordIds: [],
       roundHistory: [],
       isFinished: false,
@@ -273,6 +282,8 @@ export default function App() {
           <MatchSetup
             theme={currentTheme}
             ageRange={currentAgeRange}
+            initialRoundMode={settings.roundMode}
+            initialBoardLength={settings.boardLength}
             onConfirmTeams={handleConfirmTeamsAndStart}
             onBack={() => setCurrentPhase('home')}
           />

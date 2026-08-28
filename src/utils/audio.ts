@@ -277,6 +277,78 @@ class SoundManager {
       // Audio error safely ignored
     }
   }
+
+  // Play a bouncy pawn hop sound when moving along the board
+  public playPawnHop(stepIndex = 0) {
+    if (this.isMuted) return;
+    const ctx = this.initCtx();
+    if (!ctx) return;
+
+    try {
+      const now = ctx.currentTime;
+      const osc = ctx.createOscillator();
+      const gain = ctx.createGain();
+
+      const basePitch = 440 + (stepIndex % 8) * 45;
+      osc.type = 'sine';
+      osc.frequency.setValueAtTime(basePitch, now);
+      osc.frequency.exponentialRampToValueAtTime(basePitch * 1.5, now + 0.04);
+      osc.frequency.exponentialRampToValueAtTime(basePitch * 0.8, now + 0.09);
+
+      gain.gain.setValueAtTime(0.3 * this.volume, now);
+      gain.gain.exponentialRampToValueAtTime(0.001, now + 0.1);
+
+      osc.connect(gain);
+      gain.connect(ctx.destination);
+
+      osc.start(now);
+      osc.stop(now + 0.1);
+    } catch {
+      // Audio error safely ignored
+    }
+  }
+
+  // Grand victory fanfare when crossing the finish line
+  public playChampionVictory() {
+    if (this.isMuted) return;
+    const ctx = this.initCtx();
+    if (!ctx) return;
+
+    try {
+      const now = ctx.currentTime;
+      // Grand celebratory fanfare chords
+      const chords = [
+        { freqs: [523.25, 659.25, 783.99], start: 0, dur: 0.18 },
+        { freqs: [523.25, 659.25, 783.99], start: 0.22, dur: 0.18 },
+        { freqs: [523.25, 659.25, 783.99], start: 0.44, dur: 0.18 },
+        { freqs: [659.25, 830.61, 987.77], start: 0.68, dur: 0.4 },
+        { freqs: [783.99, 987.77, 1174.66], start: 1.12, dur: 0.35 },
+        { freqs: [1046.5, 1318.51, 1567.98], start: 1.5, dur: 0.9 },
+      ];
+
+      chords.forEach((chord) => {
+        chord.freqs.forEach((freq) => {
+          const noteStart = now + chord.start;
+          const osc = ctx.createOscillator();
+          const gain = ctx.createGain();
+
+          osc.type = 'triangle';
+          osc.frequency.setValueAtTime(freq, noteStart);
+
+          gain.gain.setValueAtTime(0.2 * this.volume, noteStart);
+          gain.gain.exponentialRampToValueAtTime(0.001, noteStart + chord.dur);
+
+          osc.connect(gain);
+          gain.connect(ctx.destination);
+
+          osc.start(noteStart);
+          osc.stop(noteStart + chord.dur);
+        });
+      });
+    } catch {
+      // Audio error safely ignored
+    }
+  }
 }
 
 export const soundManager = new SoundManager();

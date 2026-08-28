@@ -1082,6 +1082,62 @@ export default function AdminPanel({
                 </div>
               </div>
 
+              <div>
+                <label className="text-xs font-bold text-slate-400 uppercase block mb-1">
+                  Dinâmica Padrão de Mímica
+                </label>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 max-w-md">
+                  <button
+                    type="button"
+                    onClick={() => onUpdateSettings({ roundMode: 'single_team' })}
+                    className={`p-3 rounded-xl border text-left cursor-pointer transition-all ${
+                      (settings.roundMode || 'single_team') === 'single_team'
+                        ? 'bg-amber-500/20 border-amber-500 text-white'
+                        : 'bg-slate-950 border-slate-800 text-slate-400'
+                    }`}
+                  >
+                    <strong className="text-xs uppercase block text-white">Uma equipe por vez</strong>
+                    <span className="text-[11px] text-slate-400">Turnos revezados</span>
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => onUpdateSettings({ roundMode: 'all_teams' })}
+                    className={`p-3 rounded-xl border text-left cursor-pointer transition-all ${
+                      settings.roundMode === 'all_teams'
+                        ? 'bg-amber-500/20 border-amber-500 text-white'
+                        : 'bg-slate-950 border-slate-800 text-slate-400'
+                    }`}
+                  >
+                    <strong className="text-xs uppercase block text-amber-300">Todas ao mesmo tempo</strong>
+                    <span className="text-[11px] text-slate-400">Quem acertar pontua</span>
+                  </button>
+                </div>
+              </div>
+
+              <div>
+                <label className="text-xs font-bold text-slate-400 uppercase block mb-1">
+                  Extensão do Tabuleiro (Casas de Chegada)
+                </label>
+                <div className="flex items-center gap-3">
+                  <select
+                    value={settings.boardLength || 50}
+                    onChange={(e) =>
+                      onUpdateSettings({ boardLength: Number(e.target.value) || 50 })
+                    }
+                    className="w-48 bg-slate-950 border border-slate-800 rounded-xl px-4 py-2.5 text-white font-mono-digits font-bold text-sm"
+                  >
+                    <option value={30}>30 Casas (Rápido)</option>
+                    <option value={40}>40 Casas (Médio)</option>
+                    <option value={50}>50 Casas (Oficial Imagem & Ação)</option>
+                    <option value={60}>60 Casas (Desafio Longo)</option>
+                  </select>
+                  <span className="text-slate-400 text-xs">
+                    Meta de casas para os peões
+                  </span>
+                </div>
+              </div>
+
               <div className="pt-4 border-t border-slate-800">
                 <label className="text-xs font-bold text-rose-400 uppercase block mb-1">
                   Zona de Perigo — Restaurar Banco Original

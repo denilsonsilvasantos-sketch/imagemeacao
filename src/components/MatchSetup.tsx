@@ -1,13 +1,34 @@
 import { useState } from 'react';
 import { motion } from 'motion/react';
-import { Team, Theme, AgeRange } from '../types';
-import { Users, Plus, Trash2, ArrowUp, ArrowDown, Play, ArrowLeft, Shield, Sparkles } from 'lucide-react';
+import { Team, Theme, AgeRange, RoundMode } from '../types';
+import {
+  Users,
+  Plus,
+  Trash2,
+  ArrowUp,
+  ArrowDown,
+  Play,
+  ArrowLeft,
+  Shield,
+  Sparkles,
+  Zap,
+  Target,
+  Trophy,
+  HelpCircle,
+} from 'lucide-react';
 import { soundManager } from '../utils/audio';
 
 interface MatchSetupProps {
   theme: Theme;
   ageRange: AgeRange;
-  onConfirmTeams: (teams: Team[], roundDurationSeconds: number) => void;
+  initialRoundMode?: RoundMode;
+  initialBoardLength?: number;
+  onConfirmTeams: (
+    teams: Team[],
+    roundDurationSeconds: number,
+    roundMode: RoundMode,
+    targetScore: number
+  ) => void;
   onBack: () => void;
 }
 
@@ -29,6 +50,8 @@ const PRESET_TEAMS = [
 export default function MatchSetup({
   theme,
   ageRange,
+  initialRoundMode = 'single_team',
+  initialBoardLength = 50,
   onConfirmTeams,
   onBack,
 }: MatchSetupProps) {
@@ -56,6 +79,8 @@ export default function MatchSetup({
   ]);
 
   const [roundDuration, setRoundDuration] = useState<number>(80); // 80s = 1:20
+  const [roundMode, setRoundMode] = useState<RoundMode>(initialRoundMode);
+  const [boardLength, setBoardLength] = useState<number>(initialBoardLength || 50);
 
   const handleAddTeam = () => {
     if (teams.length >= 20) return; // reasonable technical ceiling
@@ -87,12 +112,6 @@ export default function MatchSetup({
     );
   };
 
-  const handleUpdateTeamIcon = (id: string, newIcon: string) => {
-    setTeams(
-      teams.map((t) => (t.id === id ? { ...t, icon: newIcon } : t))
-    );
-  };
-
   const handleMoveUp = (index: number) => {
     if (index <= 0) return;
     soundManager.playClick();
@@ -115,7 +134,7 @@ export default function MatchSetup({
 
   const handleStartMatch = () => {
     soundManager.playClick();
-    onConfirmTeams(teams, roundDuration);
+    onConfirmTeams(teams, roundDuration, roundMode, boardLength);
   };
 
   return (
@@ -149,11 +168,131 @@ export default function MatchSetup({
           Configuração da Partida
         </h1>
         <p className="text-indigo-200 text-sm sm:text-base font-bold uppercase tracking-wider mt-1">
-          Defina as equipes e a ordem de jogo
+          Defina o modo de mímica, o tabuleiro e as equipes
         </p>
       </div>
 
-      {/* Team Count Presets & Setup Card */}
+      {/* 1. MODO DE MÍMICA (UMA EQUIPE POR VEZ VS TODAS AO MESMO TEMPO) */}
+      <div className="p-6 sm:p-8 rounded-[32px] bg-white text-indigo-950 shadow-2xl mb-6 relative overflow-hidden">
+        <div className="flex items-center justify-between mb-4 pb-3 border-b border-indigo-100">
+          <div>
+            <h3 className="text-xl sm:text-2xl font-black text-indigo-950 uppercase tracking-tight flex items-center gap-2">
+              <Zap className="w-6 h-6 text-amber-500" />
+              <span>Modo de Rodada / Mímica</span>
+            </h3>
+            <p className="text-indigo-900/60 text-xs font-bold uppercase tracking-wider">
+              Escolha a dinâmica de adivinhação da partida
+            </p>
+          </div>
+        </div>
+
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+          {/* Option A: Uma equipe por vez */}
+          <button
+            type="button"
+            onClick={() => {
+              soundManager.playClick();
+              setRoundMode('single_team');
+            }}
+            className={`p-5 rounded-3xl border-3 text-left transition-all cursor-pointer relative overflow-hidden ${
+              roundMode === 'single_team'
+                ? 'bg-indigo-50 border-indigo-600 ring-4 ring-indigo-200 shadow-xl'
+                : 'bg-slate-50 border-slate-200 hover:border-indigo-300'
+            }`}
+          >
+            <div className="flex items-center justify-between mb-2">
+              <span className="text-3xl">👤</span>
+              <span
+                className={`px-3 py-1 rounded-full text-[10px] font-black uppercase tracking-wider ${
+                  roundMode === 'single_team' ? 'bg-indigo-600 text-white' : 'bg-slate-200 text-slate-600'
+                }`}
+              >
+                {roundMode === 'single_team' ? 'ATIVO' : 'SELECIONAR'}
+              </span>
+            </div>
+            <h4 className="text-lg font-black text-indigo-950 uppercase">
+              Uma Equipe por Vez
+            </h4>
+            <p className="text-xs text-indigo-900/70 mt-1 font-medium leading-relaxed">
+              Modo tradicional por turnos. Apenas a equipe da vez faz e adivinha a mímica/desenho durante o tempo.
+            </p>
+          </button>
+
+          {/* Option B: Todas ao mesmo tempo */}
+          <button
+            type="button"
+            onClick={() => {
+              soundManager.playClick();
+              setRoundMode('all_teams');
+            }}
+            className={`p-5 rounded-3xl border-3 text-left transition-all cursor-pointer relative overflow-hidden ${
+              roundMode === 'all_teams'
+                ? 'bg-amber-50 border-amber-500 ring-4 ring-amber-200 shadow-xl'
+                : 'bg-slate-50 border-slate-200 hover:border-amber-300'
+            }`}
+          >
+            <div className="flex items-center justify-between mb-2">
+              <span className="text-3xl">⚡👥</span>
+              <span
+                className={`px-3 py-1 rounded-full text-[10px] font-black uppercase tracking-wider ${
+                  roundMode === 'all_teams' ? 'bg-amber-500 text-slate-950' : 'bg-slate-200 text-slate-600'
+                }`}
+              >
+                {roundMode === 'all_teams' ? 'ATIVO' : 'SELECIONAR'}
+              </span>
+            </div>
+            <h4 className="text-lg font-black text-indigo-950 uppercase flex items-center gap-1.5">
+              <span>Todas ao Mesmo Tempo</span>
+              <span className="px-2 py-0.5 rounded-md bg-amber-400 text-slate-950 text-[10px] font-black">SIMULTÂNEO</span>
+            </h4>
+            <p className="text-xs text-indigo-900/70 mt-1 font-medium leading-relaxed">
+              Todas as equipes tentam adivinhar simultaneamente. Assim que alguém acertar, você clica e escolhe qual equipe pontuou!
+            </p>
+          </button>
+        </div>
+      </div>
+
+      {/* 2. TABULEIRO & META DE PONTOS */}
+      <div className="p-6 sm:p-8 rounded-[32px] bg-white text-indigo-950 shadow-2xl mb-6 relative overflow-hidden">
+        <div className="flex items-center justify-between mb-4 pb-3 border-b border-indigo-100">
+          <div>
+            <h3 className="text-xl sm:text-2xl font-black text-indigo-950 uppercase tracking-tight flex items-center gap-2">
+              <Trophy className="w-6 h-6 text-yellow-500" />
+              <span>Tabuleiro & Linha de Chegada</span>
+            </h3>
+            <p className="text-indigo-900/60 text-xs font-bold uppercase tracking-wider">
+              Casas que os peões devem pular até vencer a partida
+            </p>
+          </div>
+        </div>
+
+        <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+          {[30, 40, 50, 60].map((houses) => (
+            <button
+              key={houses}
+              type="button"
+              onClick={() => {
+                soundManager.playClick();
+                setBoardLength(houses);
+              }}
+              className={`p-4 rounded-2xl border-2 text-center transition-all cursor-pointer ${
+                boardLength === houses
+                  ? 'bg-yellow-400 border-yellow-500 text-indigo-950 shadow-lg scale-105 font-black ring-4 ring-yellow-200'
+                  : 'bg-slate-50 border-slate-200 text-slate-700 hover:bg-slate-100 font-bold'
+              }`}
+            >
+              <span className="text-2xl sm:text-3xl font-black block font-mono-digits">
+                {houses}
+              </span>
+              <span className="text-xs uppercase tracking-wider block">
+                {houses === 50 ? 'Casas (Padrão ⭐)' : 'Casas'}
+              </span>
+            </button>
+          ))}
+        </div>
+      </div>
+
+      {/* 3. Team Count Presets & Setup Card */}
       <div className="p-6 sm:p-8 rounded-[32px] bg-white text-indigo-950 shadow-2xl mb-8 relative overflow-hidden">
         <div className="absolute top-0 right-0 w-32 h-32 bg-indigo-50 rounded-full -mr-16 -mt-16 pointer-events-none opacity-60"></div>
 
@@ -209,13 +348,13 @@ export default function MatchSetup({
                 />
               </div>
 
-              {/* Initial Score Display */}
+              {/* Initial Position Display */}
               <div className="text-right px-3 border-l-2 border-indigo-100 hidden xs:block">
                 <span className="text-[10px] font-black text-indigo-900/50 uppercase tracking-wider block">
-                  Pontos
+                  Posição Inicial
                 </span>
-                <span className="font-black text-indigo-950 text-lg font-mono-digits">
-                  0 pts
+                <span className="font-black text-indigo-950 text-sm font-mono-digits">
+                  Casa 0 (Partida)
                 </span>
               </div>
 
@@ -265,18 +404,18 @@ export default function MatchSetup({
             <span className="text-3xl">{teams[0]?.icon}</span>
             <div>
               <span className="text-xs uppercase font-black tracking-widest text-indigo-950/70 block">
-                Inicia a partida
+                {roundMode === 'all_teams' ? 'Dinâmica: Todas Simultâneas' : 'Inicia a partida'}
               </span>
               <strong className="text-lg text-indigo-950 font-black uppercase">
-                Vez da equipe: {teams[0]?.name.toUpperCase()}
+                {roundMode === 'all_teams' ? 'TODAS AS EQUIPES DISPUTAM' : `VEZ DE: ${teams[0]?.name.toUpperCase()}`}
               </strong>
             </div>
           </div>
 
           <div className="text-right">
-            <span className="text-xs font-bold text-indigo-900/60 uppercase block">Tempo da Rodada</span>
+            <span className="text-xs font-bold text-indigo-900/60 uppercase block">Linha de Chegada</span>
             <span className="text-base font-black text-indigo-950 font-mono-digits">
-              1:20 (80s)
+              {boardLength} Casas
             </span>
           </div>
         </div>
@@ -291,8 +430,9 @@ export default function MatchSetup({
         className="w-full py-6 px-8 rounded-[32px] bg-yellow-400 hover:bg-yellow-300 text-indigo-950 font-black text-2xl uppercase tracking-wider shadow-2xl shadow-yellow-400/30 border-4 border-yellow-300 flex items-center justify-center gap-4 transition-all cursor-pointer"
       >
         <Play className="w-7 h-7 fill-current stroke-none" />
-        <span>INICIAR PARTIDA</span>
+        <span>INICIAR PARTIDA NO TABULEIRO</span>
       </motion.button>
     </div>
   );
 }
+

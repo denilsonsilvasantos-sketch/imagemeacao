@@ -19,6 +19,9 @@ export interface ProjectionState {
   stage: ProjectionStage;
   themeName?: string;
   ageRangeName?: string;
+  roundMode?: 'single_team' | 'all_teams';
+  boardLength?: number;
+  winningScore?: number;
   currentTeam?: {
     id: string;
     name: string;
@@ -34,6 +37,8 @@ export interface ProjectionState {
   totalTime: number; // e.g. 80
   isUrgent: boolean; // last 10 seconds
   roundNumber: number;
+  lastScoredTeamId?: string;
+  lastScoredPoints?: number;
   winnerTeam?: {
     name: string;
     icon: string;
@@ -49,7 +54,7 @@ export type SyncMessage =
   | { type: 'DICE_RESULT'; categoryCode: string; categoryName: string; score: number; teamName: string }
   | { type: 'TIMER_START'; timeLeft: number; totalTime: number }
   | { type: 'TIMER_TICK'; timeLeft: number; isUrgent: boolean }
-  | { type: 'ROUND_SUCCESS'; points: number; teamName: string; teamIcon: string; updatedTeams: Team[] }
+  | { type: 'ROUND_SUCCESS'; points: number; teamName: string; teamIcon: string; teamId?: string; updatedTeams: Team[] }
   | { type: 'ROUND_TIMEOUT'; teamName: string }
   | { type: 'MATCH_FINISHED'; winnerName: string; winnerIcon: string; winnerScore: number; teams: Team[] }
   | { type: 'REQUEST_CURRENT_STATE' }

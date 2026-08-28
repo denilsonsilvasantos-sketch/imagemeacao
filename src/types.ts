@@ -88,6 +88,8 @@ export interface RoundRecord {
   timestamp: string;
 }
 
+export type RoundMode = 'single_team' | 'all_teams';
+
 export interface MatchState {
   id: string;
   themeId: string;
@@ -97,11 +99,16 @@ export interface MatchState {
   teams: Team[];
   currentTeamIndex: number;
   roundNumber: number;
+  roundMode: RoundMode;
+  targetScore: number;
   usedWordIds: string[];
   status?: 'playing' | 'round_recap' | 'finished';
   roundHistory: RoundRecord[];
   turnTimeSeconds?: number;
   isFinished?: boolean;
+  winnerTeamId?: string;
+  lastScoredTeamId?: string;
+  lastScoredPoints?: number;
   startedAt?: string;
   finishedAt?: string;
   createdAt?: string;
@@ -119,6 +126,9 @@ export type GamePhase =
 
 export interface GameSettings {
   roundDurationSeconds: number;
+  roundMode: RoundMode;
+  boardLength: number;
+  winningScore: number;
   soundEnabled: boolean;
   soundVolume: number;
   projectorMode: boolean;
