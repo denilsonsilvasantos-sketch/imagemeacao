@@ -97,6 +97,7 @@ class ProjectionSyncService {
   private openedWindows: Window[] = [];
   private lastProcessedStorageMsgId: string = '';
   private currentRoomCode: string = 'SALA-1000';
+  private isSupabaseSubscribed: boolean = false;
 
   constructor() {
     if (typeof window === 'undefined') return;
@@ -186,10 +187,12 @@ class ProjectionSyncService {
 
     try {
       if (this.supabaseRealtimeChannel) {
+        this.isSupabaseSubscribed = false;
         client.removeChannel(this.supabaseRealtimeChannel);
         this.supabaseRealtimeChannel = null;
       }
 
+      this.isSupabaseSubscribed = false;
       const channelName = `room_${roomCode.toLowerCase().replace(/[^a-z0-9_-]/g, '')}`;
       this.supabaseRealtimeChannel = client.channel(channelName, {
         config: {
@@ -205,10 +208,14 @@ class ProjectionSyncService {
         })
         .subscribe((status) => {
           if (status === 'SUBSCRIBED') {
+            this.isSupabaseSubscribed = true;
             console.log(`[Supabase Realtime] Conectado à sala: ${roomCode}`);
+          } else if (status === 'CLOSED' || status === 'CHANNEL_ERROR' || status === 'TIMED_OUT') {
+            this.isSupabaseSubscribed = false;
           }
         });
     } catch (err) {
+      this.isSupabaseSubscribed = false;
       console.warn('Could not subscribe to Supabase Realtime:', err);
     }
   }
@@ -276,7 +283,8 @@ class ProjectionSyncService {
     }
 
     // 1. Supabase Cloud Realtime Broadcast (Internet cross-device)
-    if (this.supabaseRealtimeChannel) {
+    // Only send via WebSocket if the channel has completed the handshake (SUBSCRIBED)
+    if (this.supabaseRealtimeChannel && this.isSupabaseSubscribed) {
       try {
         this.supabaseRealtimeChannel.send({
           type: 'broadcast',
